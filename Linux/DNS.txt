@@ -1,0 +1,285 @@
+﻿
+DNS服务器
+域名和IP的映射
+www.sina.com.cn
+. : 根域 根服务器
+com: 顶级域
+	国家域名cn, hk, tw, jp, sg,
+	通用域名
+域名解析过程、
+递归查询
+域名发起解析
+  hosts 有->返回|
+  查询缓存|
+  本地DNS服务器解析库和缓存	
+根服务器
+迭代查询
+  本地服务向 root  cn  com sina 服务器查询
+
+授权服务器（主授权服务器、辅授权服务器）
+缓存域名服务器 负责提高查询速度
+转发域名服务器 负责查找查询路径
+hosts文件
+C:\Windows\System32\drivers\etc\hosts
+/etc/hosts
+
+
+-----------------------------------------------------------------------------------
+TTL
+class
+type
+data
+SOA(start of authority)
+Mname
+Rname
+Seri
+Ns记录
+A/AAAA
+CNAME记录
+PTR 反向解析
+MX邮件记录
+SRV记录查找
+----------------------------------------------------------------------------------
+软件 bind  服务名 named  协议 TCP/UDP
+
+ - 1. 编辑主配置文件 			/etc/named.conf
+ - 2. 编辑子配置文件(区域配置文件） 	/etc/named.rfc1912.zones 
+ - 3. 编辑正向解析配置文件 		/var/named/linux.com.zone(新建)
+ - 4. 编辑反向解析配置文件		/var/named/192.168.10.arpa(新建)
+ - 5. 重启named服务，并加入开机启动项 	chkconfig --level 345 named on/chkconfig --list named
+ - 6. 设置防火墙IPtables 或firewall-cmd
+
+###主配置文件 /etc/named.conf
+通过vim编辑修给named.conf的配置
+#vim /etc/named.conf
+***********************************************************************
+//  
+// named.conf  
+//  
+// Provided by Red Hat bind package to configure the ISC BIND named(8) DNS  
+// server as a caching only nameserver (as a localhost DNS resolver only).  
+//  
+// See /usr/share/doc/bind*/sample/ for example named configuration files.  
+
+options {
+监听地址ipv4
+listen-on port 53 { 192.168.224.129; }; //修改处
+listen-on-v6 port 53 { ::1; };
+数据文件
+directory       "/var/named";
+dump-file       "/var/named/data/cache_dump.db";
+statistics-file "/var/named/data/named_stats.txt";
+memstatistics-file "/var/named/data/named_mem_stats.txt";
+可以访问该服务器的IP
+allow-query     { any; };       //修改处
+recursion yes;
+
+        dnssec-enable yes;
+        dnssec-validation yes;
+
+        /* Path to ISC DLV key */
+        bindkeys-file "/etc/named.iscdlv.key";
+
+        managed-keys-directory "/var/named/dynamic";
+};
+logging {
+        channel default_debug {
+                file "data/named.run";
+                severity dynamic;
+        };
+};
+// "."代表根区域 
+// 根区域的类型就为hint
+// 指定zone文件，默认已经生成
+zone "." IN {
+        type hint;
+        file "named.ca";
+};
+
+include "/etc/named.rfc1912.zones";
+include "/etc/named.root.key";
+***********************************************************************
+
+
+正反向区域定义文件
+修改区域配置文件named.rfc1912.zones
+//etc/named.rfc1912.zones
+***********************************************************************
+// named.rfc1912.zones:
+//
+// Provided by Red Hat caching-nameserver package
+//
+// ISC BIND named zone configuration for zones recommended by
+// RFC 1912 section 4.1 : localhost TLDs and address zones
+// and http://www.ietf.org/internet-drafts/draft-ietf-dnsop-default-local-zones-02.txt
+// (c)2007 R W Franks
+//
+// See /usr/share/doc/bind*/sample/ for example named configuration files.
+//
+//正向区域配置文件
+zone "localhost.localdomain" IN {
+        type master; （类型master/slave 根为hint）
+        file "named.localhost";//正向数据文件的路径 相对路径
+        allow-update { none; };//指定是否允许动态更新该区域
+};
+
+//修改处
+// 自定义的域名到IP的正向解析配置 
+zone "text.com" IN {
+        type master;
+        file "named.text.com";
+        allow-update { none; };
+};
+
+zone "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa" IN {
+        type master;
+        file "named.loopback";
+        allow-update { none; };
+};
+//反向区域配置文件
+zone "1.0.0.127.in-addr.arpa" IN {
+        type master;
+        file "named.loopback";
+        allow-update { none; };
+};
+//修改处
+// 自定义的IP到域名的反向解析配置 
+zone "224.168.192.in-addr.arpa" IN {
+        type master;
+        file "named.192.168.224.arpa";
+        allow-update { none; };
+};
+***********************************************************************
+名称为text.com和224.168.192.in-addr.arpa
+对应的文件分别为
+named.text.com
+named.192.168.224.arpa
+
+
+
+###配置正向解析数据配置文件
+cp named.localhost cent.com.zone
+//named.text.com 
+***********************************************************************
+$TTL 1D 域名有效期解析时间                                             
+@ 域名       IN SOA text.com. rname.invalid. (                              
+  serial配置文件修改版本   0;serial
+  refresh更新频率             1D;refresh
+retry更新失败尝试周期     1H;retry
+无法更新失效时间             1W;expire
+ 缓存服务器无法更新失效时间       3H);minimum
+
+          NS      @
+          A         192.168.224.129
+;         AAAA    ::1
+@      IN NS   text.com.
+ns      IN A    192.168.224.210
+www  IN A    192.168.224.220
+ftp     IN A    192.168.224.230
+http   IN A    192.168.224.231
+***********************************************************************
+
+
+###配置反向解析
+cp  cent.com.zone 20.1.10.zone
+//named.192.168.224.arpa
+***********************************************************************
+$TTL 1D
+@       IN SOA  text.com. rname.invalid. (
+                                                0;serial
+                                                1D;refresh
+                                                1H;retry
+                                                1W;expire
+                                                3H );minimum
+        NS      @
+        A       192.168.224.129
+;@      IN NS   text.com
+220     IN PTR  www.text.com
+23      IN PTR  text.com
+210     IN PTR  ns.text.com
+230     IN PTR  ftp.text.com
+231     IN PTR  http.text.com
+***********************************************************************
+###注释
+#生存周期1天
+#授权信息  DNS区域提供的地址 域名管理员邮箱
+更新序列号
+更新时间
+重试时间
+失效时间
+无效解析记录缓存时间
+
+###启动服务&&&重加载
+
+named-checkconf
+测试配置文件
+named-checkzone
+测试区域
+
+***********************************************************************
+# service named start
+[root@localhost etc]# service named reload
+Reloading named:                                           [  OK  ]
+
+###查看DNS的状态
+[root@localhost etc]# service named status
+version: 9.8.2rc1-RedHat-9.8.2-0.68.rc1.el6_10.3
+CPUs found: 1
+worker threads: 1
+number of zones: 20
+debug level: 0
+xfers running: 0
+xfers deferred: 0
+soa queries in progress: 0
+query logging is OFF
+recursive clients: 0/0/1000
+tcp clients: 3/100
+server is up and running
+named (pid  6644) is running...
+[root@localhost etc]# 
+
+###通过vi /etc/resolv.conf修改系统默认DNS配置
+***********************************************************************
+; generated by /sbin/dhclient-script
+search localdomain
+nameserver 8.8.8.8
+nameserver 114.114.114.114
+***********************************************************************
+
+###bind /etc_sample 
+/usr/share/doc/bind-9.8.2/sample/etc
+[root@localhost etc]# 
+[root@localhost etc]# ls
+named.conf  named.rfc1912.zones
+[root@localhost etc]# pwd
+###DNS验证
+[root@localhost named]# nslookup
+> server 192.168.224.129
+Default server: 192.168.224.129
+Address: 192.168.224.129#53
+> www.text.com
+Server:		192.168.224.129
+Address:	192.168.224.129#53
+
+Name:	www.text.com
+Address: 192.168.224.220
+> 192.168.224.23
+Server:		192.168.224.129
+Address:	192.168.224.129#53
+
+23.224.168.192.in-addr.arpa	name = text.com.224.168.192.in-addr.arpa.
+> ftp.text.com	
+Server:		192.168.224.129
+Address:	192.168.224.129#53
+
+Name:	ftp.text.com
+Address: 192.168.224.230
+> ns.text.com
+Server:		192.168.224.129
+Address:	192.168.224.129#53
+
+Name:	ns.text.com
+Address: 192.168.224.210
+> ^C
+[root@localhost named]# 
+

@@ -1,0 +1,1460 @@
+
+                               DNS HOWTO 中译版
+                                       
+作者: Nicolai Langfeldt [1]janl@math.uio.no
+译者: [2]Asd L. Chen & [3]C.W.Huang
+
+   v1.4.2, 1 January 1998 翻译日期: 8 January 1998
+     _________________________________________________________________
+   
+   如何成为一个称职的小型 DNS 管理者．
+     _________________________________________________________________
+   
+1. 前言
+
+     * 1.1 版权宣告
+     * 1.2 感谢与求助
+     * 1.3 题献辞
+       
+2. 简介
+
+3. 暂存专用名称伺服器
+
+     * 3.1 起始 named
+       
+4. 一个简单的领域
+
+     * 4.1 先来一点纯理论
+     * 4.2 我们自己的领域
+     * 4.3 继续深入
+       
+5. 真实领域的例子
+
+     * 5.1 /etc/named.boot (或 /var/named/named.boot)
+     * 5.2 /var/named/root.cache
+     * 5.3 /var/named/zone/127.0.0
+     * 5.4 /var/named/zone/land-5.com
+     * 5.5 /var/named/zone/206.6.177
+       
+6. 维护工作
+
+7. Bind version 8
+
+8. 拨接连线的自动设定
+
+9. 常见问题解答
+
+10. 如何成为一个大型的 DNS 管理者
+     _________________________________________________________________
+   
+1. 前言
+
+   关键字: DNS, bind, named, dialup, ppp, slip, Internet, domain, name,
+   hosts, resolving
+   
+1.1 版权宣告
+
+   (C)opyright 1995 Nicolai Langfeldt. Do not modify without amending
+   copyright, distribute freely but retain copyright message.
+   没有修订版权者请勿修改，可自由散布但必须保留版权讯息．
+   
+1.2 感谢与求助
+
+   我要向无数次阅读这份文件的草稿并提供许多有用建议的 Arnt Gulbrandsen 表
+   达感谢之意． 我也要感谢那些将建议寄给我的人．
+   
+   这份文件将永远不会有完成的一天，请把你的问题以及成功的经验寄给我， 这可
+   以使它成为一份更好的说明文件．所以请把钱，评论以及/或是问题寄给
+   [4]janl@ifi.uio.no． 如果你寄信给我并希望得到回答请表现基本的礼貌，确定
+   回信地址是正确而且可以运作的． 还有，写信给我前请先阅读 [5]FAQ 一节．
+   
+   如果你想翻译这篇 HOWTO 请与我联络，这样我才知道我的文章被变成何种语言
+   :-).
+   
+1.3 题献辞
+
+   谨以这份说明文件献给 Anne Line Norheim Langfeldt．虽然她可能永远都不会
+   阅读这份文件，因为她不是这类型的女孩．
+   
+2. 简介
+
+   这是什麽以及这不是什麽
+   
+   首先，DNS 就是领域名称系统(Domain Name System)． 为机器命名的规则以及将
+   这些名称转换为 IP 数字的软体． 这份 HOWTO 文件说明了如何用 Linux 定义这
+   样的对应． 对应指的是这两件事的联系，机器名称，像 ftp.linux.org， 以及
+   机器的 IP 数字，像是 199.249.150.4．
+   
+   DNS，对新手(你；－)而言，是网路管理中比较晦暗不明的地方之一． 这份说明
+   文件将会试著让几件事情能清楚一点．它描述如何设立一个简单的 DNS 名称伺服
+   器． 开始先说明暂存专用(caching only)伺服器，然後是为一领域设立主
+   要(primary)名称伺服器． 至於更复杂的设定你可以参考这份文件的 [6]FAQ 一
+   节． 不用说你将得阅读真正的文件． 我将会在 [7]最後一章 回过头来说明这里
+   所谓真正的文件包含有哪些．
+   
+   在你可以开始进行这项工作之前你应该要先配置好你的机器以便可以从远端签入
+   它以及由它对其它机器作远端签入， 并且使所有各种对网路的连线都能成功地进
+   行，尤其你应该要能够对 127.0.0.1 进行远端签入并且进入你自己的这台机器(
+   现在就试试!)． 同时你也需要一份运作良好的 /etc/host.conf,
+   /etc/resolv.conf 以及 /etc/hosts 档案作为开始． 因为我将不会在这里解释
+   它们的功能．如果你还没有完成所有这些设定并使其运作那麽 the
+   networking/NET-2 HOWTO 会解释如何设立它们．阅读之．
+   
+   如果你使用 SLIP 或者是 PPP 那麽你得要能让它运作．若是它还不能运作的话阅
+   读 [8]PPP HOWTO．
+   
+   当我说‘你的机器’时我的意思是你正要尝试在上面设立 DNS 的那台机器． 不
+   是任何可能在你网路环境里的其它机器．
+   
+   我假设你并不是处於任何会阻碍名称查询的防火墙後面．如果你是那麽你将会需
+   要特别的设定， 参见 [9]FAQ 一节．
+   
+   在 Unix 上的名称服务是藉由一支称为 named 的程式来执行的． 这是属於
+   bind 套件的一部份，这个套件是由 Paul Vixie 为网际网路软体集团(Internet
+   Software Consortium)所协调发展的． 大部分的 Linux 发行套件都包含有
+   named，而且通常安装於 /usr/sbin/named． 如果你的系统有个 named 那麽你大
+   概可以直接使用它；如果没有的话那麽你可以从某个 Linux ftp 站取回一份二进
+   位执行档，或是从 [10]ftp.isc.org:/isc/bind/src/cur/ 目录里取得最新最棒
+   的原始程式码． 本文件是说明 bind version 4 的．如果你安装 version 8 你
+   要自己想办法．稍後有一节可能会对你有些帮助．
+   
+   DNS 是个以整个网路为□围的(net-wide)资料库．要小心你放进里面的资料． 如
+   果你放些废物进去，你，以及其它人都将会从中取出些废物． 保持你 DNS 的整
+   齐一致那麽你将能从中取得良好的服务． 学习去使用它，管理它，追查它的错误
+   那麽你将会是另一个保持网路免於因为管理不善而效率低落的好管理者．
+   
+   在这份文件里我断然地叙述几件并不完全是真实的事情(虽然它们至少有一半是真
+   的)． 这全都是为了简化．如果你相信我所说的那麽这些大概就能运作．
+   
+   要诀: 如果你已经拥有我要你去改变的档案，那麽所有这些档案都要先做备份，
+   这样一来如果经历这些改变之後没有东西会动的话你可以回复到你旧的，可以运
+   作的情形．
+   
+3. 暂存专用名称伺服器
+
+   DNS 配置的首种尝试，对拨接使用者非常有用．
+   
+   一台暂存专用名称伺服器将会为名称查询找出答案并且在下一次你需要那个名称
+   的时候记得答案．
+   
+   首先你需要一个称为 /etc/named.boot 的档案．当 named 启动时会读取这个档
+   案． 目前它应该单纯地包含:
+     _________________________________________________________________
+   
+;  Boot file for nicolais caching name server
+;
+directory /var/named
+;
+; type          domain                          source file or host
+cache           .                               root.cache
+primary         0.0.127.in-addr.arpa            pz/127.0.0
+     _________________________________________________________________
+   
+   非常重要: 在这文件的某些版本中这个档案的这份列表会在第一个非空白字元前
+   包含一些空格或 tab 键． 这些不应该出现在档案中．如果你从这份 HOWTO 剪贴
+   下来，记得删除任何前面的空白．
+   
+   `directory' 这一行告诉 named 到哪里去找寻档案．所有其後命名的档案都将是
+   相对於此目录的． 根据 Linux 档案系统标准正确的目录应该是在 /var/named．
+   因此 pz 是位於 /var/named 之下的，也就是，/var/named/pz．
+   
+   称为 /var/named/root.cache 的这个档案是在此命名的． 这个
+   /var/named/root.cache 应该包含:
+     _________________________________________________________________
+   
+ .       518400  NS      D.ROOT-SERVERS.NET.
+ .       518400  NS      E.ROOT-SERVERS.NET.
+ .       518400  NS      I.ROOT-SERVERS.NET.
+ .       518400  NS      F.ROOT-SERVERS.NET.
+ .       518400  NS      G.ROOT-SERVERS.NET.
+ .       518400  NS      A.ROOT-SERVERS.NET.
+ .       518400  NS      H.ROOT-SERVERS.NET.
+ .       518400  NS      B.ROOT-SERVERS.NET.
+ .       518400  NS      C.ROOT-SERVERS.NET.
+;
+D.ROOT-SERVERS.NET.     3600000 A       128.8.10.90
+E.ROOT-SERVERS.NET.     3600000 A       192.203.230.10
+I.ROOT-SERVERS.NET.     3600000 A       192.36.148.17
+F.ROOT-SERVERS.NET.     3600000 A       192.5.5.241
+G.ROOT-SERVERS.NET.     3600000 A       192.112.36.4
+A.ROOT-SERVERS.NET.     3600000 A       198.41.0.4
+H.ROOT-SERVERS.NET.     3600000 A       128.63.2.53
+B.ROOT-SERVERS.NET.     3600000 A       128.9.0.107
+C.ROOT-SERVERS.NET.     3600000 A       192.33.4.12
+     _________________________________________________________________
+   
+   记住我说过要去掉空白字元!
+   
+   这个档案描述了在这个世界上的根名称伺服器．这会随时间而改变并且必须加以
+   维护． 如何能保持它随时更新请参见 [11]维护篇． 在 named 的线上使用手册
+   里有这个档案的描述，但是这，以我看来，最适合那些已经了解 named 的人们．
+   
+   在 named.boot 里的下一行是 primary 这一行． 我将会在稍後的章节里解释它
+   的用法，目前只要把它设为在 pz 子目录下一个称为 127.0.0 的档案:
+     _________________________________________________________________
+   
+@               IN      SOA     linux.bogus. hostmaster.linux.bogus. (
+                                1       ; Serial
+                                28800   ; Refresh
+                                7200    ; Retry
+                                604800  ; Expire
+                                86400)  ; Minimum TTL
+                        NS      ns.linux.bogus.
+1                       PTR     localhost.
+     _________________________________________________________________
+   
+   接下来，你需要一份看起来像这样的 /etc/resolv.conf 档案:
+     _________________________________________________________________
+   
+search subdomain.your-domain.edu your-domain.edu
+nameserver 127.0.0.1
+     _________________________________________________________________
+   
+   `search' 这一行指出对於任何你想连往的主机名称应该搜寻的领域．
+   `nameserver' 这一行指出你的机器可以在哪个位址上找到一台名称伺服器， 在
+   这个例子中是你自己的这台机器，因为你在它上面执行 named． 如果你想列出好
+   几个名称伺服器把它们都放在一行 `nameserver' 里，用空格隔开． (注意:
+   named 从不读取这个档案，而是使用 named 的名称解答器会读取．)
+   
+   来说明一下这个档案有什麽作用: 如果某个客户端尝试要找寻 foo 的话， 那麽
+   首先尝试的是 foo.subdomain.your-domain.edu 这个名称， 然後接下来是
+   foo.your-fomain.edu 这个名称，最後则是 foo 这个名称． 如果有某个客户端
+   尝试要找寻 sunsite.unc.edu 的话， 那首先尝试的是
+   sunsite.unc.edu.subdomain.your-domain.edu 这个名称(没错，它真笨! 不过它
+   就是这麽做)， 然後接下来是 sunsite.unc.edu.your-domain.edu 这个名称，最
+   後则会是 sunsite.unc.edu 这个名称． 你可能不会想放太多领域到 search 该
+   行里去，搜寻它们会多花时间．
+   
+   这个□例假设你属於 subdomain.your-domain.edu 这个领域， 那麽你的机器，
+   可能会称为 your-machine.subdomain.your-domain.edu． 在 search 这行里不
+   应该包含你的 TLD (顶层领域 Top Level Domain，在这个例子中是 edu 这个领
+   域)． 如果你经常需要连线到在另外一个领域里的主机你麽你可以把该领域像这
+   样地加进 search 这行里:
+     _________________________________________________________________
+   
+search subdomain.your-domain.edu your-domain.edu other-domain.com
+     _________________________________________________________________
+   
+   依此类推．很明显的是你得放入真实的领域名称来取代这些名称．请注意在领域
+   名称的最後面并没有句号 '.'．
+   
+   接下来，根据你 libc 版本的不同需要修正 /etc/nsswitch.conf 或者是
+   /etc/host.conf 档案．
+   
+   /etc/nsswitch.conf
+   
+   这是一个很长的档案，它指出到何处去取得各种不同的资料型态，从什麽档案或
+   是资料库取得． 它的顶端经常会包含一些有用的注解．找出以 `hosts:' 作为开
+   头的那一行，它应该是这样:
+     _________________________________________________________________
+   
+hosts:      files dns
+     _________________________________________________________________
+   
+   如果档案里没有以 `hosts:' 作为开头的行那麽把上面这一行加上去． 它是说程
+   式应该先在 /etc/hosts 档案里找寻，然後根据 resolv.conf 询问 DNS．
+   
+   /etc/host.conf
+   
+   它可能包含有数行，其中应该有一行以 order 作为开始而且它看起来会像这样:
+     _________________________________________________________________
+   
+order hosts,bind
+     _________________________________________________________________
+   
+   如果档案里没有 `order' 这一行的话那麽你应该贴一份上去． 它告诉主机名称
+   解析函式先在 /etc/hosts 里找寻，然後查问名称伺服器 (在 resolv.conf 里你
+   说在 127.0.0.1 这个地方)． 在大部分 Linux 发行套件中最後这两个档案的文
+   件在 resolv(8) 的线上使用手册中(执行 `man 8 resolv' 即可)． 这份线上用
+   手册我觉得可看，而且每个人，特别是 DNS 管理者，都应该要阅读它． 现在就
+   做，如果你对你自己说"我稍後将会去做"，你将永远不会去接近它．
+   
+3.1 起始 named
+
+   这些全部完成後就可以起始 named 了．如果你使用拨接连线的话那麽请先连上网
+   路． 键入 `ndc start' 并且按下 RETURN 键，没有选项． 如果它不行的话那麽
+   试著使用 `/usr/sbin/ndc start' 来取代． 再不行的话请参考 [12]FAQ 一节．
+   现在你可以测试你的设定．当你在起始 named 的时候如果你观察一下 (使用
+   tail -f /var/adm/messages 指令)系统记录讯息档案 (通常是称为
+   /var/adm/messages 的档案，但也可能在 /var/log 下，或是叫 syslog 的档
+   案) 那麽你应该会看见像样的一些东西:
+   
+Jun 30 21:50:55 roke named[2258]: starting.  named 4.9.4-REL Sun Jun 30 21:29:0
+3 MET DST 1996   janl@roke.slip.ifi.uio.no:/var/tmp/bind/named
+Jun 30 21:50:55 roke named[2258]: cache zone "" loaded (serial 0)
+Jun 30 21:50:55 roke named[2258]: primary zone "0.0.127.in-addr.arpa" loaded (s
+erial 1)
+
+   如果有任何关於错误的讯息那麽就是有个错误发生， named 将会指名有错误的档
+   案(我想是 named.boot 以及 root.cache 其中之一:-)． 杀掉 named 程序并回
+   头检查那些档案．
+   
+   现在可以用 nslookup 来检查一下你的工作:
+   
+$ nslookup
+Default Server:  localhost
+Address:  127.0.0.1
+
+>
+
+   如果这是你所得到的回应那麽它已经能够运作．我们希望是这样．得到任何其它
+   回应都请回头检查每一件事． 每一次你改变 named.boot 档案之後你都得使用
+   ndc restart 这个指令重新起始 named 程式．
+   
+   现在你可以输入查询．尝试找寻某些靠近你的机器．pat.uio.no 离我不远，在
+   Oslo 的大学里:
+   
+> pat.uio.no
+Server:  localhost
+Address:  127.0.0.1
+
+Name:    pat.uio.no
+Address:  129.240.2.50
+
+   现在 nslookup 要求你的 named 找寻 pat.uio.no 这台机器． 然後它(named)联
+   系在你 root.cache 档案里所指名的名称伺服机器其中一台， 并且从那里查问它
+   该如何继续下去．在你取得结果之前可能得花费一点时间， 因为它搜寻你在
+   /etc/resolv.conf 里指名的所有领域．
+   
+   如果你再试一次的话那麽你将会得到:
+   
+> pat.uio.no
+Server:  localhost
+Address:  127.0.0.1
+
+Non-authoritative answer:
+Name:    pat.uio.no
+Address:  129.240.2.50
+
+   注意这回我们所得到的 `Non-authoritative answer:' 这一行． 这代表 named
+   此次并未到网路外去查问，取而代之的是在它的暂存区里找寻并且在那里找到答
+   案． 但是暂存的资讯可能会过时．所以它藉由 `Non-authorative answer:' 来
+   知会你有这个(很轻微的)危险性存在． 当 nslookup 说这是你第二次查问某台主
+   机时，这是 named 能暂存该项资讯并且正常运作的一个讯息． 你可以使用
+   `exit' 指令离开 nslookup 程式．
+   
+   如果你是个拨接(ppp, slip) 使用者请阅读 [13]拨接连线专节，里面有一些给你
+   的建议．
+   
+   现在你知道如何设立一个能够暂存的 named 系统．来杯啤酒，牛奶，或是任何你
+   喜欢的东西来庆祝吧．
+   
+4. 一个简单的领域
+
+   如何建立你自己的领域
+   
+4.1 先来一点纯理论
+
+   在我们真的开始进行这一节以前我将会提供你一些关於 DNS 如何运作的理论．
+   而你应该阅读它因为这对你有益．如果你不‘想要’那麽至少你也得很快地略读
+   一下． 当你看到应该放进 named.boot 档案里去的内容时再停止这种略读方式．
+   
+   DNS 是一个阶层式的系统．其顶端写作 `.' 而其发音为 `root' ． 在 . 之下有
+   几个顶层领域(TLDs)，最知名的是 ORG, COM, EDU 以及 NET 这几个，但是还有
+   更多．
+   
+   在寻找一台机器名称时查询会以递回方法从顶端开始． 当你想要找出
+   prep.ai.mit.edu 的位址时你的名称伺服器必须找到负责 edu 的一台名称伺服器
+   ． 这个问题它会去查问 root.cache 档案，而 . 伺服器会给它一份 edu 伺服器
+   列表．
+   
+$ nslookup
+Default Server:  localhost
+Address:  127.0.0.1
+
+   开始查问某台根伺服器．
+   
+> server c.root-servers.net.
+Default Server:  c.root-servers.net
+Address:  192.33.4.12
+
+   设定查询型态为 NS (名称伺服器记录 name server records)．
+   
+> set q=ns
+
+   查问关於 edu. 的资料．
+   
+> edu.
+
+   结尾的 . 在这里非常重要，它告诉该伺服器我们所查问的 edu 是在 . 之下的那
+   一个， 这稍能缩小搜寻的□围．
+   
+edu     nameserver = A.ROOT-SERVERS.NET
+edu     nameserver = H.ROOT-SERVERS.NET
+edu     nameserver = B.ROOT-SERVERS.NET
+edu     nameserver = C.ROOT-SERVERS.NET
+edu     nameserver = D.ROOT-SERVERS.NET
+edu     nameserver = E.ROOT-SERVERS.NET
+edu     nameserver = I.ROOT-SERVERS.NET
+edu     nameserver = F.ROOT-SERVERS.NET
+edu     nameserver = G.ROOT-SERVERS.NET
+A.ROOT-SERVERS.NET      internet address = 198.41.0.4
+H.ROOT-SERVERS.NET      internet address = 128.63.2.53
+B.ROOT-SERVERS.NET      internet address = 128.9.0.107
+C.ROOT-SERVERS.NET      internet address = 192.33.4.12
+D.ROOT-SERVERS.NET      internet address = 128.8.10.90
+E.ROOT-SERVERS.NET      internet address = 192.203.230.10
+I.ROOT-SERVERS.NET      internet address = 192.36.148.17
+F.ROOT-SERVERS.NET      internet address = 192.5.5.241
+G.ROOT-SERVERS.NET      internet address = 192.112.36.4
+
+   这告诉我们 *.root-servers.net 服务 edu. 领域，所以我们可以藉此继续查问
+   c 伺服器． 现在我们想要知道是谁负责下一层 mit.edu. 的领域名称:
+   
+> mit.edu.
+Server:  c.root-servers.net
+Address:  192.33.4.12
+
+Non-authoritative answer:
+mit.edu nameserver = STRAWB.mit.edu
+mit.edu nameserver = W20NS.mit.edu
+mit.edu nameserver = BITSY.mit.edu
+
+Authoritative answers can be found from:
+STRAWB.mit.edu  internet address = 18.71.0.151
+W20NS.mit.edu   internet address = 18.70.0.160
+BITSY.mit.edu   internet address = 18.72.0.3
+
+   steawb, w20ns 以及 bitsy 负责 mit 领域，选择其中一个并且查询
+   ai.mit.edu:
+   
+> server W20NS.mit.edu.
+
+   主机名称不分大小写，但是我使用滑鼠来剪贴所以这些资料是萤幕的拷贝．
+   
+Server:  W20NS.mit.edu
+Address:  18.70.0.160
+
+> ai.mit.edu.
+Server:  W20NS.mit.edu
+Address:  18.70.0.160
+
+Non-authoritative answer:
+ai.mit.edu      nameserver = WHEATIES.AI.MIT.EDU
+ai.mit.edu      nameserver = ALPHA-BITS.AI.MIT.EDU
+ai.mit.edu      nameserver = GRAPE-NUTS.AI.MIT.EDU
+ai.mit.edu      nameserver = TRIX.AI.MIT.EDU
+ai.mit.edu      nameserver = MUESLI.AI.MIT.EDU
+
+Authoritative answers can be found from:
+AI.MIT.EDU      nameserver = WHEATIES.AI.MIT.EDU
+AI.MIT.EDU      nameserver = ALPHA-BITS.AI.MIT.EDU
+AI.MIT.EDU      nameserver = GRAPE-NUTS.AI.MIT.EDU
+AI.MIT.EDU      nameserver = TRIX.AI.MIT.EDU
+AI.MIT.EDU      nameserver = MUESLI.AI.MIT.EDU
+WHEATIES.AI.MIT.EDU     internet address = 128.52.32.13
+WHEATIES.AI.MIT.EDU     internet address = 128.52.35.13
+ALPHA-BITS.AI.MIT.EDU   internet address = 128.52.32.5
+ALPHA-BITS.AI.MIT.EDU   internet address = 128.52.37.5
+GRAPE-NUTS.AI.MIT.EDU   internet address = 128.52.32.4
+GRAPE-NUTS.AI.MIT.EDU   internet address = 128.52.36.4
+TRIX.AI.MIT.EDU internet address = 128.52.32.6
+TRIX.AI.MIT.EDU internet address = 128.52.38.6
+MUESLI.AI.MIT.EDU       internet address = 128.52.32.7
+MUESLI.AI.MIT.EDU       internet address = 128.52.39.7
+
+   所以 weaties.ai.mit.edu 是 ai.mit.edu 的一台名称伺服器:
+   
+> server WHEATIES.AI.MIT.EDU.
+Default Server:  WHEATIES.AI.MIT.EDU
+Addresses:  128.52.32.13, 128.52.35.13
+
+   现在我改变查询的型态，我们已经找到该名称伺服器所以现在我们将要询问
+   wheaties 关於 prep.ai.mit.edu 它所知道的任何事情．
+   
+> set q=any
+> prep.ai.mit.edu.
+Server:  WHEATIES.AI.MIT.EDU
+Addresses:  128.52.32.13, 128.52.35.13
+
+prep.ai.mit.edu CPU = dec/decstation-5000.25    OS = unix
+prep.ai.mit.edu
+        inet address = 18.159.0.42, protocol = tcp
+         #21 #23 #25 #79
+prep.ai.mit.edu preference = 1, mail exchanger = life.ai.mit.edu
+prep.ai.mit.edu internet address = 18.159.0.42
+ai.mit.edu      nameserver = alpha-bits.ai.mit.edu
+ai.mit.edu      nameserver = wheaties.ai.mit.edu
+ai.mit.edu      nameserver = grape-nuts.ai.mit.edu
+ai.mit.edu      nameserver = mini-wheats.ai.mit.edu
+ai.mit.edu      nameserver = trix.ai.mit.edu
+ai.mit.edu      nameserver = muesli.ai.mit.edu
+ai.mit.edu      nameserver = count-chocula.ai.mit.edu
+ai.mit.edu      nameserver = life.ai.mit.edu
+ai.mit.edu      nameserver = mintaka.lcs.mit.edu
+life.ai.mit.edu internet address = 128.52.32.80
+alpha-bits.ai.mit.edu   internet address = 128.52.32.5
+wheaties.ai.mit.edu     internet address = 128.52.35.13
+wheaties.ai.mit.edu     internet address = 128.52.32.13
+grape-nuts.ai.mit.edu   internet address = 128.52.36.4
+grape-nuts.ai.mit.edu   internet address = 128.52.32.4
+mini-wheats.ai.mit.edu  internet address = 128.52.32.11
+mini-wheats.ai.mit.edu  internet address = 128.52.54.11
+mintaka.lcs.mit.edu     internet address = 18.26.0.36
+
+   所以我们从 . 开始连续找出在领域名称里的下一层名称伺服器． 如果你使用你
+   自己的 DNS 伺服器而不是所有这些个其它的伺服器， 你的 named 当然会暂存所
+   有这些在为你寻找这个答案时所找到的资讯， 而且在一段时间内它不必再次查问
+   ．
+   
+   一个比较起来很少被论及，但是同样重要的是 in-addr.arpa 领域．它也像‘正
+   常的’领域一样是巢状的． in-addr.arpa 让我们可以在拥有主机位址的时候得
+   知该主机的名称． 在这里有件重要的事情要注意的是在 in-addr.arpa 这个领域
+   中 ip 数字是以反向顺序书写的． 如果你有某台机器的位址: 192.128.52.43 那
+   麽 named 会以类似 prep.ai.mit.edu 这个□例的方式来处理: 找出 arpa. 的伺
+   服器，找出 in-addr.arpa. 的伺服器，然後再找出 192.in-addr.arpa. 的伺服
+   器， 找出 128.192.in-addr.arpa. 的伺服器，接著找出
+   52.128.192.in-addr.arpa. 的伺服器， 最後再找出所需之
+   43.52.128.192.in-addr.arpa. 的记录．聪明乎? (说‘是的’)． 头两年这反向
+   的数字也引起过一些困扰．
+   
+   其实我是骗你的．DNS 并非完完全全地像我告诉你的这样运作．但是这已经够接
+   近的了．
+   
+4.2 我们自己的领域
+
+   现在来定义我们自己的领域．我们将会创造出 linux.bogus 这个领域并且定义其
+   中的机器． 我使用一个完全是虚拟出来的领域名称以便确定我们不会扰乱到网路
+   上的其它地方．
+   
+   我们早就已经以 named.boot 里的这一行开始了这个部份的设定:
+     _________________________________________________________________
+   
+primary         0.0.127.in-addr.arpa            pz/127.0.0
+     _________________________________________________________________
+   
+   请注意在这个档案里的领域名称结尾并没有加上 `.' 符号． 第一行把定义
+   0.0.127.in-addr.arpa 的档案命名为 pz/127.0.0． 我们早已经建立了这个档案
+   ，它是这样的:
+     _________________________________________________________________
+   
+@               IN      SOA     linux.bogus. hostmaster.linux.bogus. (
+                                1       ; Serial
+                                28800   ; Refresh
+                                7200    ; Retry
+                                604800  ; Expire
+                                86400)  ; Minimum TTL
+                        NS      ns.linux.bogus.
+1                       PTR     localhost.
+     _________________________________________________________________
+   
+   请注意在这个档案里所有的完整领域名称结尾的 `.' 符号，这与上面提到的
+   named.boot 档案形成对比． 有些人喜欢以 $ORIGIN 指令启始每个区域档案，但
+   这是不必要的． 一个区域档案的基点(就是其所属的 DNS 阶层架构位置)是在
+   named.boot 档案的‘领域’行里指定的， 在这个例子里是
+   0.0.127.in-addr.arpa．
+   
+   这个‘区域档案’中包含三种‘资源记录’(resource records, RRs): 一个是
+   SOA 资源记录．一个是 NS 资源记录以及一个 PTR 记录． SOA 是授权起
+   始(Start Of Authority)的缩写．`@' 是个意思为基点的特殊标记， 而因为这个
+   档案的‘领域’行说是 0.0.127.in-addr.arpa 所以第一行实际上是指
+   
+  0.0.127.IN-ADDR.ARPA. IN      SOA ...
+
+   NS 是名称伺服器资源记录，它告诉 DNS 什麽机器是这个领域
+   0.0.127.in-addr.arpa 的名称伺服器，也就是 ns.linux.bogus. 而最後的 PTR
+   记录说 1 (等於是 1.0.0.127.IN-ADDR.ARPA, 也就是 127.0.0.1)的名称是
+   localhost．
+   
+   SOA 这个记录是所有区域档案的序文，而且在每一个区域档案里都应该有这唯一
+   的一个，最开头的记录． 它描述该区域，它从何而来(一台称为 linux.bogus 的
+   机器)，谁负责其内容(hostmaster@linux.bogus)， 这个区域档案是什麽版
+   本(serial: 1)，以及其它必须做的，有关暂存与次要名称伺服器的事． 剩下的
+   栏位如 refresh, retry, expire 以及 minimum 你可以使用这份文件里所用的数
+   字而且应该不会出问题．
+   
+   现在重新起始你的 named(使用 ndc restart 指令)并使用 nslookup 来检验我们
+   做了什麽:
+   
+$ nslookup
+
+Default Server:  localhost
+Address:  127.0.0.1
+
+> 127.0.0.1
+Server:  localhost
+Address:  127.0.0.1
+
+Name:    localhost
+Address:  127.0.0.1
+
+   所以它管理从 127.0.0.1 得到 localhost 的过程，很好． 现在开始我们的主要
+   任务，linux.bogus 这个领域， 在 named.boot 里 插入新的一行 primary 指
+   令:
+     _________________________________________________________________
+   
+primary               linux.bogus                     pz/linux.bogus
+     _________________________________________________________________
+   
+   注意，在 named.boot 档案里领域名称的结尾还是没有 '.' 符号．
+   
+   在这个 linux.bogus 区域档案里我们将会放入一些完全虚拟的资料:
+     _________________________________________________________________
+   
+;
+; Zone file for linux.bogus
+;
+; Mandatory minimum for a working domain
+;
+@       IN      SOA     linux.bogus. hostmaster.linux.bogus. (
+                        199511301       ; serial, todays date + todays serial #
+                        28800           ; refresh, seconds
+                        7200            ; retry, seconds
+                        3600000         ; expire, seconds
+                        86400 )         ; minimum, seconds
+                NS      ns.linux.bogus.
+                NS      ns.friend.bogus.
+                MX      10 mail.linux.bogus   ; Primary Mail Exchanger
+                MX      20 mail.friend.bogus. ; Secondary Mail Exchanger
+
+localhost       A       127.0.0.1
+ns              A       127.0.0.2
+mail            A       127.0.0.4
+     _________________________________________________________________
+   
+   关於 SOA 记录有两件事需要注意．首先 ns.linux.bogus 必须 是一台具有 A 记
+   录的真正机器． 在 SOA 记录中用 CNAME 记录为名称的机器是不合法的．它的名
+   字不一定要是 ns，它可以是任何合法的主机名称． 再来
+   ，hostmaster.linux.bogus 应该被视为 hostmaster@linux.bogus，这应该是一
+   个邮件位址或别名， 是维护这个 DNS 的人经常读信的位址．任何关於此领域的
+   信件会被送到这个位址． 它的名字不一定要是 hostmaster，它可以是任何合法
+   的电子邮件位址，然而这个位址 `hostmaster' 应该能工作正常．
+   
+   在这个档案里有一种新的资源记录型态，即 MX 型态，或是邮件交换者资源记
+   录(Mail eXchanger RR)． 这种资源记录型态告诉邮递系统地址
+   someone@linux.bogus 的邮件要寄送到哪里， 换句话说也就是应该寄送到
+   mail.linux.bogus 或是 mail.friend.bogus． 在每个机器名称前面的数字是
+   MX 资源记录的优先权，数字比较低 (10) 的资源记录是邮件主要应该寄往的机器
+   ． 如果失败可以把它寄往数字比较高的机器，一台次要的邮件处理者，也就是在
+   这里具有优先权 20 的 mail.friend.bogus．
+   
+   用 ndc restart 重新起始 named．以 nslookup 检验结果:
+   
+$ nslookup
+> set q=any
+> linux.bogus
+Server:  localhost
+Address:  127.0.0.1
+
+linux.bogus
+        origin = linux.bogus
+        mail addr = hostmaster.linux.bogus
+        serial = 199511301
+        refresh = 28800 (8 hours)
+        retry   = 7200 (2 hours)
+        expire  = 604800 (7 days)
+        minimum ttl = 86400 (1 day)
+linux.bogus     nameserver = ns.linux.bogus
+linux.bogus     nameserver = ns.friend.bogus
+linux.bogus     preference = 10, mail exchanger = mail.linux.bogus.linux.bogus
+linux.bogus     preference = 20, mail exchanger = mail.friend.bogus
+linux.bogus     nameserver = ns.linux.bogus
+linux.bogus     nameserver = ns.friend.bogus
+ns.linux.bogus  internet address = 127.0.0.2
+mail.linux.bogus        internet address = 127.0.0.4
+
+   小心地检验你将会发现一个错误．这一行
+   
+  linux.bogus     preference = 10, mail exchanger = mail.linux.bogus.linux.bogu
+s
+
+   全都错了．它应该是
+   
+  linux.bogus     preference = 10, mail exchanger = mail.linux.bogus
+
+   我故意犯了个错误所以你可以藉此学习:-) 仔细看看该区域档案我们会发现这一
+   行
+   
+@              MX      10 mail.linux.bogus     ; Primary Mail Exchanger
+
+   遗漏了一个句点．或是说多了个 `linux.bogus'． 在区域档案里如果一个机器名
+   称不是以句点结尾那麽会在其结尾加入基点．所以不论是
+     _________________________________________________________________
+   
+@              MX      10 mail.linux.bogus.    ; Primary Mail Exchanger
+     _________________________________________________________________
+   
+   或是
+     _________________________________________________________________
+   
+@              MX      10 mail                 ; Primary Mail Exchanger
+     _________________________________________________________________
+   
+   都是正确的．我比较喜欢後面这种形式，它需要的打字比较少． 在一个区域档案
+   里领域名称应该要不就是写出来并以 `.' 结尾或者就是一点都不要包含进去，
+   而在这种情况下其领域预设为基点．其它人也许喜欢采用另一种方式．
+   
+   我必须强调的是在 named.boot 档案里领域名称後面不应该有 `.' 的存在． 你
+   不知道有多少次因为多了或少了一个 `.' 而搞砸了并且对许多人造成困扰．
+   
+   所以在加入我强调的重点後得到一份新的区域档案，其中还包含一些额外的资
+   讯:
+     _________________________________________________________________
+   
+;
+; Zone file for linux.bogus
+;
+; Mandatory minimum for a working domain
+;
+@       IN      SOA     linux.bogus.    hostmaster.linux.bogus. (
+                        199511301       ; serial, todays date + todays serial #
+                        28800           ; refresh, seconds
+                        7200            ; retry, seconds
+                        604800          ; expire, seconds
+                        86400 )         ; minimum, seconds
+
+                NS      ns              ; Inet Address of name server
+                NS      ns.friend.bogus.
+                MX      10 mail         ; Primary Mail Exchanger
+                MX      20 mail.friend.bogus. ; Secondary Mail Exchanger
+
+localhost       A       127.0.0.1
+ns              A       127.0.0.2
+mail            A       127.0.0.4
+;
+; Extras
+;
+@               TXT     "Linux.Bogus, your DNS consultants"
+
+ns              MX      10 mail
+                MX      20 mail.friend.bogus.
+                HINFO   "Pentium" "Linux 1.2"
+                TXT     "RMS"
+richard         CNAME   ns
+www             CNAME   ns
+
+donald          A       127.0.0.3
+                MX      10 mail
+                MX      20 mail.friend.bogus.
+                HINFO   "i486"  "Linux 1.2"
+                TXT     "DEK"
+
+mail            MX      10 mail
+                MX      20 mail.friend.bogus.
+                HINFO   "386sx" "Linux 1.0.9"
+
+ftp             A       127.0.0.5
+                MX      10 mail
+                MX      20 mail.friend.bogus.
+                HINFO   "P6" "Linux 1.3.59"
+     _________________________________________________________________
+   
+   你也许会想要移动前面三个 A 记录以便让它们靠近其它的相关记录，而不是像这
+   样放在最前端．
+   
+   这里有几个新的资源记录: 主机资讯(HINFO: Host INFOrmation) 包括两个部份
+   ， 使用引号涵括每个部份是个好习惯．第一个部份是机器上的硬体或是中央处理
+   单元， 而第二个部份是机器上的软体或是作业系统．ns 有一颗 Pentium CPU 并
+   且执行 Linux 1.2 系统． TXT 记录是个随意的文字记录，你可以用它来记录任
+   何事情． 正式名称(CNAME: Canonical NAME)可以用来给每台机器数个名称． 所
+   以 richard 以及 www 都是 ns 的一个别名． 很重要的一点是 A, MX, CNAME,
+   以及 SOA 记录永远不该参照 CNAME 记录设定的别名， 它们只应该参照 A 记录
+   所设定的名称，所以像这样的记录是错的
+     _________________________________________________________________
+   
+foobar  CNAME   richard                 ; NO!
+     _________________________________________________________________
+   
+   不过这样是对的
+     _________________________________________________________________
+   
+foobar  CNAME   ns                      ; Yes!
+     _________________________________________________________________
+   
+   还有一点也很重要的是注意正式名称所设定的对电子邮递位址而言不是合法主机
+   名称: webmaster@www.linux.bogus 以上面的设定而言是一个不合法的电子邮递
+   位址． 即使它在你的系统上可以运作，可以预料的是很少有电子邮件管理者会去
+   实行这项规则． 避免这个问题的方法是使用 A 记录(或者也可能是一些其它的，
+   像是 MX 记录)来取代之:
+     _________________________________________________________________
+   
+www     A       127.0.0.2
+     _________________________________________________________________
+   
+   Paul Vixie, 主要的 named 专家，建议不要使用 CNAME 这个设定． 所以应该考
+   虑不要很认真地去使用它．
+   
+   藉由执行 ndc reload 载入新的资料库，这会使 named 再一次读取其档案．
+   
+$ nslookup
+Default Server:  localhost
+Address:  127.0.0.1
+
+> ls -d linux.bogus
+
+   这意指应该列出所有的记录
+   
+[localhost]
+ linux.bogus.                   SOA   ns.linux.bogus hostmaster.linux.bogus. (1
+99511301 28800 7200 604800 86400)
+ linux.bogus.                   NS    ns.linux.bogus
+ linux.bogus.                   NS    ns.friend.bogus
+ linux.bogus.                   MX    10   mail.linux.bogus
+ linux.bogus.                   MX    20   mail.friend.bogus
+ linux.bogus.                   TXT   "Linux.Bogus, your DNS consultants"
+ localhost                      A     127.0.0.1
+ mail                           A     127.0.0.4
+ mail                           MX    10   mail.linux.bogus
+ mail                           MX    20   mail.friend.bogus
+ mail                           HINFO 386sx       Linux 1.0.9
+ donald                         A     127.0.0.3
+ donald                         MX    10   mail.linux.bogus
+ donald                         MX    20   mail.friend.bogus
+ donald                         HINFO i486        Linux 1.2
+ donald                         TXT   "DEK"
+ www                            CNAME ns.linux.bogus
+ richard                        CNAME ns.linux.bogus
+ ftp                            A     127.0.0.5
+ ftp                            MX    10   mail.linux.bogus
+ ftp                            MX    20   mail.friend.bogus
+ ftp                            HINFO P6          Linux 1.3.59
+ ns                             A     127.0.0.2
+ ns                             MX    10   mail.linux.bogus
+ ns                             MX    20   mail.friend.bogus
+ ns                             HINFO Pentium     Linux 1.2
+ ns                             TXT   "RMS"
+ linux.bogus.                   SOA   ns.linux.bogus hostmaster.linux.bogus. (1
+99511301 28800 7200 604800 86400)
+
+   很好．让我们检查它对於单独的 www 会说什麽:
+   
+> set q=any
+> www.linux.bogus.
+Server:  localhost
+Address:  127.0.0.1
+
+www.linux.bogus canonical name = ns.linux.bogus
+
+   ...换句话说，www.linux.bogus 真正的名称是 ns.linux.bogus．
+   
+linux.bogus     nameserver = ns.linux.bogus
+linux.bogus     nameserver = ns.friend.bogus
+ns.linux.bogus  internet address = 127.0.0.2
+
+   而 ns.linux.bogus 拥有 127.0.0.2 这个位址．看起来也很好．
+   
+4.3 继续深入
+
+   当然，这个领域是高度虚拟的，里面所有的位址也都是，而这或许会让你有些混
+   淆． 真实领域的一个真实例子请见下一节．
+   
+5. 真实领域的例子
+
+   这里我们列出一些真正的区域档案
+   
+   使用者建议我加上一个可以运作的真实例子，因为我对真正可运作的领域及虚拟
+   □例之间差别解释的不够清楚．
+   
+   关於这个例子有件事必须声明: 千万不要把它放到你的名称伺服器上! 把它当作
+   参考资料来阅读就好．如果你想做实验，用上面虚拟的例子． 我经过 LAND-5 的
+   David Bullock 的同意才使用这个例子．这些档案的日期是 1996 年九月二十日
+   ， 因此如果你现在查询 LAND-5 的名称伺服器可能会发现有所不同． 还有，请
+   记住，删去前面的空白 :-)
+   
+5.1 /etc/named.boot (或 /var/named/named.boot)
+
+   我们发现需要两行 primary 的反向区域: 一个是 127.0.0，另一个是 LAND-5 的
+   子网路 206.6.177． 还有一行给 land-5.com 的正向区域．还有一点要注意的是
+   不像我在这篇文章里将档案放在 pz 目录里， 他将它们放到叫做 zone 的目录．
+     _________________________________________________________________
+   
+;  Boot file for LAND-5 name server
+;
+directory /var/named
+;
+; type          domain                          source file or host
+cache           .                               root.cache
+primary         0.0.127.in-addr.arpa            zone/127.0.0
+primary         177.6.206.in-addr.arpa          zone/206.6.177
+primary         land-5.com                      zone/land-5.com
+     _________________________________________________________________
+   
+5.2 /var/named/root.cache
+
+   记住这个档案是动态的，这边列出来的是旧的．你最好自己用 dig 产生一个新的
+   ．
+     _________________________________________________________________
+   
+; <<>> DiG 2.1 <<>>
+;; res options: init recurs defnam dnsrch
+;; got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 6
+;; flags: qr rd ra; Ques: 1, Ans: 9, Auth: 0, Addit: 9
+;; QUESTIONS:
+;;      ., type = NS, class = IN
+
+;; ANSWERS:
+ .       518357  NS      H.ROOT-SERVERS.NET.
+ .       518357  NS      B.ROOT-SERVERS.NET.
+ .       518357  NS      C.ROOT-SERVERS.NET.
+ .       518357  NS      D.ROOT-SERVERS.NET.
+ .       518357  NS      E.ROOT-SERVERS.NET.
+ .       518357  NS      I.ROOT-SERVERS.NET.
+ .       518357  NS      F.ROOT-SERVERS.NET.
+ .       518357  NS      G.ROOT-SERVERS.NET.
+ .       518357  NS      A.ROOT-SERVERS.NET.
+
+;; ADDITIONAL RECORDS:
+H.ROOT-SERVERS.NET.     165593  A       128.63.2.53
+B.ROOT-SERVERS.NET.     165593  A       128.9.0.107
+C.ROOT-SERVERS.NET.     222766  A       192.33.4.12
+D.ROOT-SERVERS.NET.     165593  A       128.8.10.90
+E.ROOT-SERVERS.NET.     165593  A       192.203.230.10
+I.ROOT-SERVERS.NET.     165593  A       192.36.148.17
+F.ROOT-SERVERS.NET.     299616  A       192.5.5.241
+G.ROOT-SERVERS.NET.     165593  A       192.112.36.4
+A.ROOT-SERVERS.NET.     165593  A       198.41.0.4
+
+;; Total query time: 250 msec
+;; FROM: land-5 to SERVER: default ---- 127.0.0.1
+;; WHEN: Fri Sep 20 10:11:22 1996
+;; MSG SIZE  sent: 17  rcvd: 312
+     _________________________________________________________________
+   
+5.3 /var/named/zone/127.0.0
+
+   不过是基本的，不能省略的 SOA 记录，以及将 127.0.0.1 指向 localhost 的记
+   录． 两者都是必须的．不应有其它的东西在此档案中．这个档案可能永远不必更
+   新，除非你的名称伺服器或管理人地址改变．
+     _________________________________________________________________
+   
+@               IN      SOA     land-5.com. root.land-5.com. (
+                                199609203       ; Serial
+                                28800   ; Refresh
+                                7200    ; Retry
+                                604800  ; Expire
+                                86400)  ; Minimum TTL
+                        NS      land-5.com.
+
+1                       PTR     localhost.
+     _________________________________________________________________
+   
+5.4 /var/named/zone/land-5.com
+
+   在这里我们看到这个必须的 SOA 记录，必要的 NS 记录． 我们可以看到它有一
+   个次要的名称伺服器於 ns2.psi.net． 这也应该是必要的，总是保有一个次要的
+   伺服器做为备份． 我们还看到做为 LAND-5 负责所有不同服务的主机，它以许多
+   的 CNAME 记录做到这点 (另一个做法是用 A 记录)．
+   
+   就像你从 SOA 记录看到的一样，区域档案以 land-5.com 开始，管理人是
+   root@land-5.com． 序号(serial)以 yyyymmdd 的格式加上当天的号码; 它可能
+   是 1996 年九月二十号那天的第六个版本的区域档案． 请记住序号必须单调地递
+   增，这里它只用一位数字表示当天的号码， 因此在编辑九次之後他必须等到明天
+   才能再编辑这个档案．[译注] 因此应该考虑用两位数字．
+   
+   [译注]
+          读者可能会奇怪为什麽不能用 1996092010 ? 这个数字也是递增的，所以
+          当然可以． 但到了明天第一次编档案时该用什麽呢? 如果用 199609211
+          ，那麽这个数字就比 1996092010 要小了． 这样会有麻烦．因此作者建
+          议应用两位数字，如 1996092006．
+     _________________________________________________________________
+   
+@       IN      SOA     land-5.com. root.land-5.com. (
+                        199609206       ; serial, todays date + todays serial #
+                        10800           ; refresh, seconds
+                        7200            ; retry, seconds
+                        10800           ; expire, seconds
+                        86400 )         ; minimum, seconds
+                NS      land-5.com.
+                NS      ns2.psi.net.
+                MX      10 land-5.com.  ; Primary Mail Exchanger
+
+localhost       A       127.0.0.1
+
+router          A       206.6.177.1
+
+land-5.com.     A       206.6.177.2
+ns              CNAME   land-5.com.
+ftp             CNAME   land-5.com.
+www             CNAME   land-5.com.
+mail            CNAME   land-5.com.
+news            CNAME   land-5.com.
+
+funn            A       206.6.177.3
+illusions       CNAME   funn.land-5.com.
+@               TXT     "LAND-5 Corporation"
+
+;
+;       Workstations
+;
+ws_177200       A       206.6.177.200
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177201       A       206.6.177.201
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177202       A       206.6.177.202
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177203       A       206.6.177.203
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177204       A       206.6.177.204
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177205       A       206.6.177.205
+                MX      10 land-5.com.   ; Primary Mail Host
+; {Many repetitive definitions deleted - SNIP}
+ws_177250       A       206.6.177.250
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177251       A       206.6.177.251
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177252       A       206.6.177.252
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177253       A       206.6.177.253
+                MX      10 land-5.com.   ; Primary Mail Host
+ws_177254       A       206.6.177.254
+                MX      10 land-5.com.   ; Primary Mail Host
+     _________________________________________________________________
+   
+   另一件值得注意的事所有的工作站都没有个别的名称，而是用一开头加上最後两
+   位的 IP 数字． 用这样的惯例可以大量地简化维护工作，但可能有点不方便，而
+   且，事实上可能是你的客户不满的来源．
+   
+5.5 /var/named/zone/206.6.177
+
+   我将在後面说明这个档案．
+     _________________________________________________________________
+   
+@               IN      SOA     land-5.com. root.land-5.com. (
+                                199609206       ; Serial
+                                28800   ; Refresh
+                                7200    ; Retry
+                                604800  ; Expire
+                                86400)  ; Minimum TTL
+                        NS      land-5.com.
+                        NS      ns2.psi.net.
+;
+;       Servers
+;
+1       PTR     router.land-5.com.
+2       PTR     land-5.com.
+3       PTR     funn.land-5.com.
+;
+;       Workstations
+;
+200     PTR     ws_177200.land-5.com.
+201     PTR     ws_177201.land-5.com.
+202     PTR     ws_177202.land-5.com.
+203     PTR     ws_177203.land-5.com.
+204     PTR     ws_177204.land-5.com.
+205     PTR     ws_177205.land-5.com.
+; {Many repetitive definitions deleted - SNIP}
+250     PTR     ws_177250.land-5.com.
+251     PTR     ws_177251.land-5.com.
+252     PTR     ws_177252.land-5.com.
+253     PTR     ws_177253.land-5.com.
+254     PTR     ws_177254.land-5.com.
+     _________________________________________________________________
+   
+   反向区域似乎是整个设定中最让人头痛的部份．它是在你有机器的 IP 数字时查
+   询机器名称用的． 例如: 你有一部 irc 伺服器接受 irc 客户端的连线． 但你
+   是挪威的伺服器因此你只希望接受来自挪威及其它斯堪地那维亚国家的连线． 当
+   你接到来自客户端的连线时 C 程式库能够告诉你连线机器的 IP 位址，因为客户
+   端的 IP 数字是包含在传入的网路封包中的． 然後你可以呼叫一函式
+   gethostbyaddr 以给定的 IP 查询机器名称． gethostbyaddr 函式会向 DNS 询
+   问，DNS 就会出去查询这台机器名称． 假设客户端来自 ws_177200.land-5.com
+   ，C 程式库提供给 irc 伺服器的 IP 是 206.6.177.200． 为找出机器的名称我
+   们要查询 200.177.6.206.in-addr.arpa．DNS 伺服器首先找到负责 arpa. 的伺
+   服器． 然後找到 in-addr.arpa. 的伺服器，再来是反过来的 206，然後是 6，
+   最後找到在 LAND-5 负责 177.6.206.in-addr.arpa 区域的伺服器． 由此我们得
+   到 200.177.6.206.in-addr.arpa 的答案是 'PTR ws_177200.land-5.com' 记录
+   ， 意指拥有 IP 206.6.177.200 的名称是 ws_177200.land-5.com． 不过就像在
+   解释 prep.ai.mit.edu 如何查询时所说，这过程稍微有点不对．
+   
+   回到 irc 伺服器的例子．irc 伺服器只接再来自斯堪地那维亚国家的连线，也就
+   是， *.no, *.se, *.dk．ws_177200.land-5.com 这个名字显然并不符合任何这
+   些． 因此伺服器会拒绝连线．如果没有经由 in-addr.arpa 区域到
+   206.2.177.200 的反向对应， 伺服器将无法查到机器名称而将会拿
+   206.2.177.200 来和 *.no, *.se 及 *.dk 比较，当然找不到符合的．
+   
+   有些人会告诉你反向对应查询只对伺服器重要，或是一点也不重要． 当然不是:
+   许多 ftp, news, irc 甚至 http 伺服器将不接受无法查到名称的机器连线． 因
+   此事实上机器的反向名称对应是必须的．
+   
+6. 维护工作
+
+   维持它的运作．
+   
+   维持它们的继续执行之外，对於 named 你还有个维护的任务得要做． 那就是维
+   持 root.cache 档案的更新．最简单的方法是使用 dig 程式， 首先不加任何参
+   数执行 dig 程式，你将会取得从你自己伺服器得到的 root.cache． 然後以
+   dig @rootserver . ns 查问所列出的根伺服器其中之一． 你将会注意到这份输
+   出看起来非常地像一个 root.cache 档案，除了一堆额外的数字以外．这些数字
+   不会有什麽妨碍． 把它存放到档案里(dig @e.root-servers.net . ns
+   >root.cache.new)并且用它来取代原本旧的 root.cache 档案．
+   
+   取代了原先的档案之後要记得重新启动 named 程式．
+   
+   Al Longyear 寄给我这个指令稿，它可以自动执行来更新 named.cache，为它安
+   装个 crontab 项目然後忘了它． 这个指令稿假设你的电子邮件可以运作而且
+   `hostmaster' 这个邮件别名有定义．你应该修订它以便符合你的设定．
+     _________________________________________________________________
+   
+#!/bin/sh
+#
+# Update the nameserver cache information file once per month.
+# This is run automatically by a cron entry.
+#
+(
+ echo "To: hostmaster <hostmaster>"
+ echo "From: system <root>"
+ echo "Subject: Automatic update of the named.boot file"
+ echo
+
+ export PATH=/sbin:/usr/sbin:/bin:/usr/bin:
+ cd /var/named
+
+ dig @rs.internic.net . ns >root.cache.new
+
+ echo "The named.boot file has been updated to contain the following informatio
+n:"
+ echo
+ cat root.cache.new
+
+ chown root.root root.cache.new
+ chmod 444 root.cache.new
+ rm -f root.cache.old
+ mv root.cache root.cache.old
+ mv root.cache.new root.cache
+ ndc restart
+ echo
+ echo "The nameserver has been restarted to ensure that the update is complete.
+"
+ echo "The previous root.cache file is now called /var/named/root.cache.old."
+) 2>&1 | /usr/lib/sendmail -t
+exit 0
+     _________________________________________________________________
+   
+   有些人可能用 ftp 从 Internic 得到 root.cache 档案． 请不要用 ftp 来更新
+   root.cache，上面提到的方法更为便利．
+   
+7. Bind version 8
+
+   Bind version 8 是最新的 bind 技术．我还没有尝试使用，但 David E. Smith
+   < [14]dave@bureau42.ml.org> 有．他写了这小节的其馀部份．
+   
+   没有太多的不同．除了使用 named.conf 而不是 named.boot, 其馀都相同． 而
+   且 bind 8 包含了一个 perl 指令稿来将旧格式的档案转换成新的． 例如一份暂
+   存专用名称伺服器的 named.boot (旧格式):
+     _________________________________________________________________
+   
+directory /var/named
+cache   .                                       root.hint
+primary 0.0.127.IN-ADDR.ARPA                    127.0.0.zone
+primary localhost                               localhost.zone
+     _________________________________________________________________
+   
+   在指令列下，於 bind8/src/bin/named 目录中键入:
+     _________________________________________________________________
+   
+named-bootconf.pl < named.boot > named.conf
+     _________________________________________________________________
+   
+   这会产生 named.conf:
+     _________________________________________________________________
+   
+// generated by named-bootconf.pl
+
+options {
+        directory "/var/named";
+};
+
+zone "." {
+        type hint;
+        file "root.hint";
+};
+
+zone "0.0.127.IN-ADDR.ARPA" {
+        type master;
+        file "127.0.0.zone";
+};
+
+zone "localhost" {
+        type master;
+        file "localhost.zone";
+};
+     _________________________________________________________________
+   
+   它将 named.boot 中的每样东西都转换过来，然而它并未加入所有 bind 8 所允
+   许的新强化及配置选项． 这里有份较完整的 named.conf 做同样的事，但是效率
+   更好一点．
+     _________________________________________________________________
+   
+// This is a configuration file for named (from BIND 8.1 or later).
+// It would normally be installed as /etc/named.conf.
+// The only change made from the `stock' named.conf (aside from this
+// comment :) is that the directory line was uncommented, since I
+// already had the zone files in /var/named.
+
+options {
+        directory "/var/named";
+        check-names master warn;                /* default. */
+        datasize 20M;
+};
+
+zone "localhost" IN {
+        type master;
+        file "localhost.zone";
+        check-names fail;
+        allow-update { none; };
+        allow-transfer { any; };
+};
+
+zone "0.0.127.in-addr.arpa" IN {
+        type master;
+        file "127.0.0.zone";
+        check-names fail;
+        allow-update { none; };
+        allow-transfer { any; };
+};
+
+zone "." IN {
+        type hint;
+        file "root.hint";
+};
+     _________________________________________________________________
+   
+   bind8/src/bin/named/test 里有这个□例，以及领域档案的拷贝，许多人可以直
+   接拿来修改使用．
+   
+   领域档案及 root.hint (root.cache) 完全相同，更新它们的指令也是．
+   
+8. 拨接连线的自动设定
+
+   这一节解释我如何设定以便让每个过程自动化． 我的方法可能一点都不适合你，
+   但是你可能从我所作的一些事情里得到一些点子． 同时，我使用 PPP 拨接，然
+   而有许多人使用 slip 或是 cslip 连线方式， 所以你的设定里几乎每个地方都
+   可能跟我的不同． 但是 slip 使用的 dip 程式应该能够完成我所作的许多事情
+   ．
+   
+   一般来说，当我没有连上网路时我的 resolv.conf 档案单纯地包含这一行
+   
+domain uio.no
+
+   这确保我不必等待主机名称解析函式库去尝试联系某台不可能帮助我的名称伺服
+   器． 但是当我连上线的时候我想要起始我的 named 并且拥有一个看起来像前面
+   所描述的 resolv.conf 档案． 我藉由保持两份 resolv.conf 的‘样板’档案
+   ，resolv.conf.local 以及 resolv.conf.connected 来解决问题． 後面这一个
+   看起来像前面所描述过的 resolv.conf 档案．
+   
+   要自动化连线到网路的过程我执行一个称为 `ppp-on' 的指令稿:
+     _________________________________________________________________
+   
+#!/bin/sh
+echo calling...
+pppd
+     _________________________________________________________________
+   
+   pppd 有个称为 options 的档案，它告诉 pppd 如何取得连线的一些特殊事项．
+   一旦我的 ppp 连线完成後 pppd 起始一个称为 ip-up 的指令(这在 pppd 的线上
+   使用手册里有描述)． 这里是该指令稿里面的一部份:
+     _________________________________________________________________
+   
+#!/bin/sh
+interface="$1"
+device="$2"
+speed="$3"
+myip="$4"
+upip="$5"
+ ...
+cp -v /etc/resolv.conf.connected /etc/resolv.conf
+ ...
+/usr/sbin/named
+     _________________________________________________________________
+   
+   换句话说，我在这里起始我的 named 程式．当 ppp 离线时 pppd 执行一个称为
+   ip-down 的指令稿:
+     _________________________________________________________________
+   
+#!/bin/sh
+cp /etc/resolv.conf.local /etc/resolv.conf
+read namedpid < /var/run/named.pid
+kill $namedpid
+     _________________________________________________________________
+   
+   所以这在连线时配置并设定相关事宜并且在离线时解除该配置并结束相关程式．
+   
+   某些程式，例如我想起 irc 与 talk，做了过多的假定，为了让其工作正常你必
+   须修改你的 hosts 档案． 我在 ip-up 上加入
+     _________________________________________________________________
+   
+cp /etc/hosts.ppp /etc/hosts
+echo $myip      roke >>/etc/hosts
+     _________________________________________________________________
+   
+   hosts.ppp 是简单地包含了
+     _________________________________________________________________
+   
+127.0.0.1       localhost
+     _________________________________________________________________
+   
+   而 echo 指令插入了我收到的 IP 号码做为我机器的名称(roke)． 你应该改用你
+   自己机器的名称，可以用 hostname 指令查出．
+   
+   当你没有连线到网路上时执行 named 可能并不聪明， 这是因为 named 将会尝试
+   送出查询到网路上而且其终止时限(timeout)很长， 而每次有某些个程式尝试解
+   析一个名称的时候你就得等待到这个终止时限． 如果你使用拨接的话你应该在连
+   上网时起始 named 并且在离线时杀掉它． 不过请参考 [15]FAQ 一节的提示．
+   
+   某些人喜欢在慢速的连线上使用 forwarders 指令． 如果你的网际网路提供者在
+   1.2.3.4 以及 1.2.3.5 设有 DNS 伺服器那麽你可以插入这麽一行
+     _________________________________________________________________
+   
+forwarders 1.2.3.4 1.2.3.5
+     _________________________________________________________________
+   
+   到 named.boot 档案里去． 这将会减低源自你主机的 IP 流量，可能稍微提升速
+   度．如果你是依线路的资料量付费的话这点特别重要． 这还有个附加价值，让你
+   脱离作为一个暂存的 named 维护者所应负起的责任: 你不需要去更新一个空的
+   root.cache 档案．
+   
+9. 常见问题解答
+
+   本节中我将列出一些关於 DNS 以及本文件最常被提出的问题．还有解答 :-) 在
+   写信给我前请先阅读过本节．
+   
+    1. 如何在防火墙之内使用 DNS ?
+       一些提示: `forwarders', `slave', 以及参考本文件最後面的文献列表．
+    2. 如何利用 DNS 提供的可用位址於某一服务，如 www.busy.site， 以获得负
+       荷平衡或类似的效果?
+       为 www.busy.site 加上许多 A 记录，而且使用 bind 4.9.3 或以後的版本
+       ． 这样 bind 会使用 round-robin 演算法找寻答案．这不能在更早版本的
+       bind 上工作．
+    3. 我想在一封闭的 Intranet 上架设 DNS．我该怎麽做?
+       把暂存档案丢掉只留区域档案．这也表示你将不需要更新暂存档案．
+    4. 我的系统没有 ndc 程式．我该怎麽办?
+       你的系统安装过一旧的，可能过期的 bind 程式． 如果安全性对你很重要:
+       立刻将 bind 升级．如果不是，你也可以用这旧的． 你可直接执行 named
+       而不是 ndc start． ndc reload 变成 named.reload 而 ndc restart 变成
+       named.restart． 所有这些程式可能都在 /usr/sbin 里．
+    5. 如何建立次要名称伺服器?
+       如果主要名称伺服器的地址是 127.0.0.1， 在你的次要名称伺服器的
+       named.boot 档案中放一行:
+         _____________________________________________________________
+       
+  secondary     linux.bogus             127.0.0.1       sz/linux.bogus
+         _____________________________________________________________
+       
+    6. 我希望离线时 bind 仍继续执行．
+       我收到来自 Ian Clark < [16]ic@deakin.edu.au> 的信件解释他如何办到这
+       点．
+       
+I run named on my 'Masquerading' machine here. I have
+two root.cache files, one called root.cache.real which contains
+the real root server names and the other called root.cache.fake
+which contains...
+
+--------------
+; root.cache.fake
+; this file contains no information
+--------------
+
+When I go off line I copy the root.cache.fake file to root.cache and
+restart named.
+
+When I go online I copy root.cache.real to root.cache and restart
+named.
+
+This is done from ip-down & ip-up respectively.
+
+The first time I do a query off line on a domain name named doesn't
+have details for it puts an entry like this in messages..
+
+Jan 28 20:10:11 hazchem named[10147]: No root nameserver for class IN
+
+which I can live with.
+
+It certainly seems to work for me. I can use the nameserver for
+local machines while off the 'net without the timeout delay for
+external domain names and I while on the 'net queries for external
+domains work normally
+
+    7. 名称伺服器将暂存资料保存在那儿? 有任何方法可以控制它的大小吗?
+       所有的暂存资料都保存在记忆体中，任何时刻它都不会被写入磁碟中． 每次
+       你杀掉 named 时这些暂存资料就没有了．没有任何方法可以控制暂存资料．
+       named 用一些简单的法则来管理它．你不能用任何理由任何方法控制暂存资
+       料或其大小． 如果你希望如此你可以自己去改 named 的程式．不过最好别
+       这麽做．
+    8. 如何在重新起始 named 之间保存暂存资料? 我可以把它存下来吗?
+       不! named 被杀掉时不会保留暂存资料． 这就是说暂存资料必须在每次你杀
+       掉并重新起始 named 後重新建立． 没有办法让 named 将暂存资料存到档案
+       里． 如果你希望如此你可以自己去改 named 的程式．不过最好别这麽做．
+       
+10. 如何成为一个大型的 DNS 管理者
+
+   文件以及工具
+   
+   存在真正的文件．在线上的或是印好的．要跨出由小型 DNS 到大型 DNS 管理者
+   的一步阅读几份这些文件是必要的． 印好的标准参考书是 DNS and BIND by C.
+   Liu and P. Albitz from O'Reilly & Associates, Sebastopol, CA, ISBN
+   0-937175-82-X． 我读过，它很棒．在另一本 TCP/IP Network
+   Administration, by Craig Hunt from O'Reilly..., ISBN 0-937175-82-X 有一
+   节是关於 DNS 的．另一本对管理 DNS 很好的(或者是对任何这一类工作都很好)
+   书则是 Zen and the Art of Motorcycle Maintenance, 作者 Robert M.
+   Prisig 书号 ISBN 0688052304．
+   
+   线上的资料你可以在这里找到 [17]http://www.dns.net/dnsrd/,
+   [18]http://www.isc.org/bind.html; 常见问题集，参考手册(BOG; Bind
+   Operations Guide)是协定的定义以及 DNS 研究的文献． 这些文件我大部分没有
+   阅读过，但是因此我不是个大型 DNS 管理者． 另一方面 Arnt Gulbrandsen 已
+   经读过 BOG 而且对此很熟稔 :-)． 网路新闻讨论群
+   [19]comp.protocols.tcp-ip.domains 是有关 DNS 的讨论群． 此外还有好几份
+   关於 DNS 的 RFCs，最重要的可能是这些:
+   
+   RFC 2052
+          A. Gulbrandsen, P. Vixie, A DNS RR for specifying the location
+          of services (DNS SRV), October 1996
+          
+   RFC 1918
+          Y. Rekhter, R. Moskowitz, D. Karrenberg, G. de Groot, E. Lear,
+          Address Allocation for Private Internets, 02/29/1996.
+          
+   RFC 1912
+          D. Barr, Common DNS Operational and Configuration Errors,
+          02/28/1996.
+          
+   RFC 1713
+          A. Romao, Tools for DNS debugging, 11/03/1994.
+          
+   RFC 1712
+          C. Farrell, M. Schulze, S. Pleitner, D. Baldoni, DNS Encoding
+          of Geographical Location, 11/01/1994.
+          
+   RFC 1183
+          R. Ullmann, P. Mockapetris, L. Mamakos, C. Everhart, New DNS RR
+          Definitions, 10/08/1990.
+          
+   RFC 1035
+          P. Mockapetris, Domain names - implementation and
+          specification, 11/01/1987.
+          
+   RFC 1034
+          P. Mockapetris, Domain names - concepts and facilities,
+          11/01/1987.
+          
+   RFC 1033
+          M. Lottor, Domain administrators operations guide, 11/01/1987.
+          
+   RFC 1032
+          M. Stahl, Domain administrators guide, 11/01/1987.
+          
+   RFC 974
+          C. Partridge, Mail routing and the domain system, 01/01/1986.
+
+References
+
+   1. mailto:janl@math.uio.no
+   2. http://ultima.ncnu.edu.tw/~asdchen/
+   3. http://www.phys.ntu.edu.tw/~cwhuang/pub/
+   4. mailto:janl@ifi.uio.no
+   5. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#qanda
+   6. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#qanda
+   7. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#bigger
+   8. file://localhost/tmp/bg5sgmltools.8322/PPP-HOWTO.html
+   9. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#qanda
+  10. ftp://ftp.vix.com/pub/bind/
+  11. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#maint
+  12. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#qanda
+  13. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#auto
+  14. mailto:dave@bureau42.ml.org
+  15. file://localhost/tmp/bg5sgmltools.8322/DNS-HOWTO.txt.html#qanda
+  16. mailto:ic@deakin.edu.au
+  17. http://www.dns.net/dnsrd/
+  18. http://www.isc.org/bind.html
+  19. news:comp.protocols.tcp-ip.domains

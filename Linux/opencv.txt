@@ -1,0 +1,25 @@
+﻿
+在 Python 2.7 里使用 OpenCV 实在是再简单不过了，
+只需要把 OpenCV 目录中 /build/python/2.7 里的 “cv2.pyd” 复制粘贴到 Python 目录下的 \Lib\site-packages 文件夹中，再 import cv2 即可。
+
+1.下载opencv
+2.配置环境变量
+PATH 
+3.链接到python
+C:\Program Files\opencv\build\python\2.7\x64\cv2.pyd
+copy
+C:\Users\newChenyingtao\Anaconda3\envs\newpy2\Lib\site-packages
+
+#获取图像的直方图
+import numpy as np
+import cv2 as cv
+from matplotlib import pyplot as plt
+img = cv.imread('D:/Users/20191107083434500.jpg')
+color=('b','g','r')
+for i, col in enumerate(color):
+    histr=cv.calcHist([img],[i], None,[256],[0,256])
+    plt.plot(histr,color=col)
+    plt.xlim([0,256])
+    plt.show()
+
+Mat类存储操作图像的主要数据结构

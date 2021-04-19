@@ -1,0 +1,8 @@
+解决方式：经检查发现是selinux导致报错。
+[root@localhost nginx]# getenforce　　　　#查询selinux状态
+[root@localhost nginx]# setenforce 0     #临时将selinux关闭
+如果需要永久关闭selinux，请编辑/etc/selinux/config文件，将SELINUX=disabled。之后将系统重启一下即可。
+
+
+CentOS 6 iptables
+CentOS 7 firewall
