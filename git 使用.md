@@ -1,5 +1,6 @@
 *  Git官网：https://git-scm.com/
-• 测试
+
+测试
 *  $ git –version
 *  $ cd Desktop
 *  $ mkdir projects
@@ -26,7 +27,7 @@
 放弃追踪命令
 * git rm --cached <file>
 
-commit的作用是什么
+commit的作用是什么 保存提交 已经追踪的文件
 • 命令
 * git commit
 * git commit -m 
@@ -165,9 +166,9 @@ git restore 取消修改
 * 主仓库做服务器
 * 仓库配置
 
-如何获取远端项目
-• 命令
-* git clone [远端仓库地址] * git clone --no-checkout
+如何获取远端项目	命令
+* git clone [远端仓库地址] 
+* git clone --no-checkout
 * git clone --bare [远端仓库地址]
 
 

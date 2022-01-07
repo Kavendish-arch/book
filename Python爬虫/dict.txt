@@ -1,0 +1,5 @@
+messagen. 消息; 信息; 要旨; 教训 v. 给…发消息; 给…留言
+MESSAGEabbr. modular electronic solid state aerospace gro
+messagedvt. 通知（message的过去式与过去分词形式）
+messagesn. 信息( message的名词复数 ); 便条; 要旨; 主题思想
+message box[计]消息框
